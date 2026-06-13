@@ -1,6 +1,7 @@
 # Blackwing CM5 Payload Module v1r1
 
 **Subsystem**: Payload
+
 **Status**: 🧪 Sample boards ordered for testing, source file release pending.
 <!--
 **Design Files**:
@@ -367,4 +368,4 @@ Designed for development and bring-up. Not flight-qualified.
 
 ## 15. License
 
-[CERN-OHL-S-2.0](../../LICENSE)
+[CERN-OHL-S-2.0](LICENSE)
