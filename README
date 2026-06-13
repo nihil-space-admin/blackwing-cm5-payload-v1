@@ -1,0 +1,370 @@
+# Blackwing CM5 Payload Module v1r1
+
+**Subsystem**: Payload
+**Status**: 🧪 Sample boards ordered for testing, source file release pending.
+<!--
+**Design Files**:
+- **Version**: v1r1
+- **KiCad**: [`kicad10/`](kicad10/)
+
+**Manufacturing Files**:
+- **Version**: v1r1
+- **KiCad**: v10
+- **Date**: 2026-06-13
+- **Release**: [blackwing-cm5-payload-module-v1r1](https://github.com/nihil-space/blackwing-cm5-payload-module-v1r1/)
+- **Artifacts**:
+    - **Schematics**: Included (PDF)
+    - **Gerbers, Drill and Centroid**: Included (ZIP)
+    - **BOM**: Included (CSV, HTML)
+    - **Panel File**: Not Included
+    - **Instruction**:
+        - **Ordering**: Included
+        - **Sourcing**: Not Included
+        - **Assembly**: Not Included
+    - **3D Model**: Included (STEP)
+    - **3D Render**: Included (WebP)
+
+**Warning**
+
+This board is still in development and has not been qualified for space flight.-->
+
+![3D Render](https://github.com/nihil-space/blackwing-cm5-payload-module-v1r1/)
+
+## Table of Contents
+
+1. [Overview](#1-overview)
+2. [Block Diagram](#2-block-diagram)
+3. [Specifications](#3-specifications)
+4. [Key Components](#4-key-components)
+5. [Connectors and Interfaces](#5-connectors-and-interfaces)
+6. [On-Board Functions](#6-on-board-functions)
+7. [CM5 GPIO Assignment](#7-cm5-gpio-assignment)
+8. [I2C Address Table](#8-i2c-address-table)
+9. [Payload Bus Connections](#9-payload-bus-connections)
+10. [Configurable Components](#10-configurable-components)
+    - 10.1 [Power Source Selection (U301, TPS2121)](#101-power-source-selection-u301-tps2121)
+    - 10.2 [5V Point-of-Load Module (U302, FS1603A-5000)](#102-5v-point-of-load-module-u302-fs1603a-5000)
+    - 10.3 [Gyroscope (U801, IAM-20380)](#103-gyroscope-u801-iam-20380)
+    - 10.4 [FRAM (U802, CY15B102Q)](#104-fram-u802-cy15b102q)
+    - 10.5 [RTC Backup Battery (BT401)](#105-rtc-backup-battery-bt401)
+    - 10.6 [Rail Breakout Headers (J107, J108)](#106-rail-breakout-headers-j107-j108)
+    - 10.7 [Indicator LEDs](#107-indicator-leds)
+11. [Test Points, Indicators, Buttons & Jumpers](#11-test-points-indicators-buttons--jumpers)
+    - 11.1 [Test Points](#111-test-points)
+    - 11.2 [Indicators](#112-indicators)
+    - 11.3 [Buttons](#113-buttons)
+    - 11.4 [Configuration Jumpers](#114-configuration-jumpers)
+12. [Known Limitations & Design Decisions](#12-known-limitations--design-decisions)
+13. [Revision History](#13-revision-history)
+14. [Notes](#14-notes)
+15. [License](#15-license)
+
+## 1. Overview
+
+The Blackwing CM5 Payload Module is a carrier board for the Raspberry Pi Compute Module 5 (CM5), intended as a compute payload for the Blackwing Sparrow CubeSat platform. It is built to the [Sparrow Payload IDC v0.2 (2026-05-28)](#) and the Blackwing DODO payload adapter board template v0.1a, and is a respin of the [CM5_MINIMA_REV2](https://github.com/piecol/CM5_MINIMA_REV2) design by Pierluigi Colangeli.
+
+The board takes battery voltage from the payload bus and generates the rails the CM5 needs: a 5V point-of-load (PoL) module steps VBAT down to 5V, and a power mux selects between this PoL output and USB-C 5V. The CM5 then generates its own 3.3V output, which supplies all on-board 3.3V peripherals. On-board peripherals are a TDK IAM-20380 gyroscope and an Infineon CY15B102Q FRAM. The board breaks out two MIPI CSI camera interfaces, a 10/100 Ethernet link, a USB-C device port, and a USB host port. A payload bus connector exposes VBAT, I2C, SPI, UART, and two GPIO lines to the rest of the satellite.
+
+This version is deliberately partial. Because usable component height on the bottom copper is limited to 1.49 mm, the M.2 Key-M connector and its associated 3.3V PoL module are not implemented, so the board carries a single power mux and a single PoL module. There is no inhibit logic on this board. The design is for development and bring-up only – it is not yet qualified for spaceflight.
+
+## 2. Block Diagram
+
+```mermaid
+flowchart LR
+    CONN["Payload Connector\nSamtec SFM-120 (J101)"]
+
+    POL["5V PoL\nFS1603A-5000 (U302)"]
+    MUX["5V Source Mux\nTPS2121 (U301)"]
+    CM5["Raspberry Pi CM5\ngenerates +3V3"]
+
+    USBC["USB-C\n5V + USB 2.0 (J201)"]
+    GYRO["Gyroscope\nIAM-20380 (I2C3)"]
+    FRAM["FRAM\nCY15B102Q (SPI1)"]
+    CAM["2x CSI Cameras\nJ701 / J702"]
+    USBH["USB Host\nPicoBlade (J202)"]
+    ETH["Ethernet 10/100\nPicoBlade (J601)"]
+
+    CONN -->|VBAT| POL
+    POL --> MUX
+    MUX --> CM5
+    USBC -->|5V| MUX
+    CONN <-->|I2C3 / SPI2 / UART1 / RESET / GPIO25| CM5
+
+    CM5 --> GYRO
+    CM5 --> FRAM
+    CM5 --> CAM
+    CM5 --> USBH
+    CM5 --> ETH
+    USBC -->|USB 2.0| CM5
+```
+
+## 3. Specifications
+
+- **Based on**: Sparrow Payload IDC v0.2 (2026-05-28) and Blackwing DODO payload adapter board template v0.1a
+- **Dimensions**: 90.17 mm × 95.89 mm
+- **Thickness**: 1.6 mm
+- **Layer Count**: 6
+- **Copper Weight**: 1 oz outer, 1 oz inner, 70% residual
+- **Stackup**:
+    1. F.Cu – Signal
+    2. In1.Cu – Ground
+    3. In2.Cu – Power
+    4. In3.Cu – Mixed
+    5. In4.Cu – Ground
+    6. B.Cu – Signal
+- **Impedance Targets**: Not controlled. The following differential impedance targets were used during routing:
+    - MIPI CSI (100 Ω): 0.15 mm trace / 0.25 mm gap
+    - USB 2.0 (90 Ω): 0.185 mm trace / 0.25 mm gap
+    - PCIe (90 Ω, set up but currently unused): 0.185 mm trace / 0.25 mm gap
+    - Single-ended (I2C, SPI, 50 Ω): 0.175 mm trace
+- **Panelization**: No
+- **Mounting**: Inside the Blackwing standard payload module enclosure, via four M3 bolt holes on the PCB
+- **Stacking**: Blackwing payload module connector (Samtec SFM-120-01-L-D, J101)
+- **ECAD**: Schematic and layout created in KiCad 10
+
+## 4. Key Components
+
+| Designator | Part | Function | Grade | Notes |
+|---|---|---|---|---|
+| Module401/402 | Raspberry Pi CM5 | Compute module | Commercial | – |
+| U302 | TDK FS1603A-5000-AL | 5V PoL module (VBAT → 5V) | Industrial | – |
+| U304 | TDK FS1603A-3300-AL | 3.3V PoL module (5V → 3V3, for M.2) | Industrial | Not implemented this revision |
+| U301 | TI TPS2121RUX | Power source mux (PoL 5V vs. USB 5V) | Industrial | – |
+| U303 | TI TPS2121RUX | Power source mux (3V3 PoL vs. USB) | Industrial | Not implemented this revision |
+| U401 | TI SN74LVC1G14DBV | Power LED logic inverter | Industrial | – |
+| U801 | TDK IAM-20380 | 3-axis gyroscope (I2C3) | Industrial | – |
+| U802 | Infineon CY15B102Q-SXET | 2 Mbit SPI F-RAM (SPI1) | Automotive (AEC-Q100 Grade 1) | – |
+| U501 | Abracon ASEK-32.768KHZ-L-R-T | 32.768 kHz oscillator (M.2) | – | Not implemented this revision |
+| U101–U103 | TI TPD4E1B06DRLR | ESD protection (payload bus) | Industrial | – |
+| U201, U202 | TI TPD4E1B06DRLR | ESD protection (USB) | Industrial | – |
+| U601 | TI TPD4E1B06DRLR | ESD protection (Ethernet) | Industrial | – |
+| D201 | TI ESD751 | ESD protection (USB-C VBUS) | Industrial | Q1 variant available |
+| D401 | Infineon BAT60A | Schottky (RTC backup OR-ing) | Industrial | – |
+
+## 5. Connectors and Interfaces
+
+- **Payload Connector (J101)**: Samtec SFM-120-01-L-D (2x20, 1.27 mm). Stacking connector to the Blackwing payload module. Carries VBAT, I2C3, SPI2, UART1, and two GPIO lines (see [Payload Bus Connections](#9-payload-bus-connections)). All bus signals have 22 Ω series resistors and TPD4E1B06 ESD protection. Per the Sparrow Payload IDC v0.2.
+- **USB-C (J201)**: USB 2.0 device port. Can be used to power the board independently and for data connectivity.
+- **USB Host (J202)**: Molex 533984004 PicoBlade. USB 2.0 host port for connecting USB devices to the CM5.
+- **Ethernet (J601)**: Molex 533984004 PicoBlade. 10/100 Ethernet, intended for use with an Amphenol/Botblox switch (magnetics are on the switch).
+- **Camera (J701, J702)**: 2x Hirose FH12A-22S-0.5SH, 22-pin FFC. MIPI CSI camera interfaces (CSI1, CSI2).
+- **M.2 Key-M (J501)**: Amphenol MDT420M01002. For an M.2 PCIe AI accelerator card. Not implemented this revision (bottom-copper component height limited to 1.49 mm).
+- **Rail Breakout (J107, J108)**: Unpopulated 1x02 1.27 mm headers breaking out the bus 3.3V and 5V rails (see [Rail Breakout Headers](#106-rail-breakout-headers-j107-j108)).
+
+## 6. On-Board Functions
+
+- 5V generation from VBAT via the FS1603A-5000 PoL module
+- Source selection between PoL 5V and USB-C 5V via the TPS2121 power mux
+- 3.3V generation for on-board peripherals from the CM5's own 3.3V output
+- Two MIPI CSI camera interfaces
+- 10/100 Ethernet (external switch)
+- USB-C device port (power + data) and a USB host port
+- On-board attitude rate sensing via TDK IAM-20380 gyroscope (I2C3)
+- Non-volatile storage via Infineon CY15B102Q FRAM (SPI1)
+- Payload bus interface exposing VBAT, I2C3, SPI2, UART1, CM5 RESET, and one spare GPIO
+- Provision (unimplemented) for an M.2 PCIe AI accelerator card and its dedicated 3.3V PoL module
+
+## 7. CM5 GPIO Assignment
+
+The CM5 is not an MCU, but documenting its GPIO usage is the most useful single reference for working with this board, so a GPIO assignment table is included here in place of the usual MCU pinout. Only the assigned GPIOs are listed; unlisted lines are unused on this board. Pin numbers refer to the CM5 GPIO connector (Amphenol 10164227-1001A1RLF, Module401).
+
+| GPIO | Conn. Pin | Net | Peripheral | Function |
+|---|---|---|---|---|
+| GPIO0 (ID_SD) | 36 | I2C_2_SDA | I2C2 | CSI2 camera control (data) |
+| GPIO1 (ID_SC) | 35 | I2C_2_SCL | I2C2 | CSI2 camera control (clock) |
+| GPIO2 | 58 | I2C_3_SDA | I2C3 | On-board + payload bus I2C (data) |
+| GPIO3 | 56 | I2C_3_SCL | I2C3 | On-board + payload bus I2C (clock) |
+| GPIO6 | 30 | M.2_PGOOD | GPIO | M.2 power-good input |
+| GPIO9 | 40 | POCI_GPIO9 | SPI2 | Payload bus SPI POCI |
+| GPIO10 | 44 | PICO_GPIO10 | SPI2 | Payload bus SPI PICO |
+| GPIO11 | 38 | SCLK_GPIO11 | SPI2 | Payload bus SPI clock |
+| GPIO14 | 55 | UART_TX_GPIO14 | UART0 | Payload bus UART TX |
+| GPIO15 | 51 | UART_RX_GPIO15 | UART0 | Payload bus UART RX |
+| GPIO16 | 29 | UART_CTS_GPIO16 | UART0 | Payload bus UART CTS |
+| GPIO17 | 50 | UART_RTS_GPIO17 | UART0 | Payload bus UART RTS |
+| GPIO18 | 49 | FRAM_HOLD | GPIO | FRAM HOLD |
+| GPIO19 | 26 | POCI_GPIO19 | SPI1 | FRAM POCI |
+| GPIO20 | 27 | PICO_GPIO20 | SPI1 | FRAM PICO |
+| GPIO21 | 25 | SCLK_GPIO21 | SPI1 | FRAM clock |
+| GPIO22 | 46 | CS_GPIO22 | SPI2 | Payload bus SPI chip select |
+| GPIO23 | 47 | GYRO_INT | GPIO | Gyroscope interrupt |
+| GPIO24 | 45 | CS_GPIO24 | SPI1 | FRAM chip select |
+| GPIO25 | 41 | GPIO2_BUS | GPIO | Spare, exposed on payload bus |
+| SDA0 | 82 | I2C_1_SDA | I2C1 | CSI1 camera control (data) |
+| SCL0 | 80 | I2C_1_SCL | I2C1 | CSI1 camera control (clock) |
+
+SPI1 (FRAM, GPIO19/20/21/24) is terminated with 22 Ω series resistors (R401–R403); the SPI2 counterparts are on the payload connector sheet. External pull-ups are omitted for I2C1–I2C3 – selected GPIOs use the CM5's internal 1.8 kΩ pull-ups.
+
+OSHWA SPI naming is used throughout: PICO (Peripheral In / Controller Out) and POCI (Peripheral Out / Controller In).
+
+## 8. I2C Address Table
+
+External pull-ups are omitted for all three I2C buses; the CM5's internal 1.8 kΩ pull-ups are used. Addresses are 7-bit.
+
+### I2C1 – CSI1 Camera Control (SDA0/SCL0, pins 82/80)
+
+Camera control bus, broken out to the CSI1 FFC connector (J701). No fixed on-board device – addresses depend on the attached camera module.
+
+### I2C2 – CSI2 Camera Control (ID_SD/ID_SC, GPIO0/1, pins 36/35)
+
+Camera control bus, broken out to the CSI2 FFC connector (J702). No fixed on-board device – addresses depend on the attached camera module.
+
+### I2C3 – On-Board Management + Payload Bus (GPIO2/3, pins 58/56)
+
+Shared between on-board devices and the payload bus connector.
+
+| Device | Designator | Function | Hex | Dec |
+|---|---|---|---|---|
+| FS1603A-5000 | U302 | 5V PoL module | 0x08 | 8 |
+| IAM-20380 | U801 | Gyroscope | 0x68 | 104 |
+
+## 9. Payload Bus Connections
+
+The payload connector (J101) bridges the CM5 to the rest of the satellite. SPI2 and UART1 are routed directly between the CM5 and the connector and are not used by anything on the board.
+
+| Bus | CM5 GPIO | Notes |
+|---|---|---|
+| VBAT | – | Battery input from the payload bus |
+| I2C3 | GPIO2/3 | Shared with on-board gyro (0x68) and 5V PoL (0x08) |
+| SPI2 | GPIO9/10/11/22 | POCI/PICO/SCLK/CS – CM5 ↔ connector only |
+| UART1 | GPIO14/15/16/17 | TX/RX/CTS/RTS – CM5 ↔ connector only |
+| GPIO1_BUS | RESET | CM5 reset, exposed on payload bus |
+| GPIO2_BUS | GPIO25 | Spare GPIO, available for payload use |
+
+The CM5 also receives M.2 power-good on GPIO6, FRAM HOLD on GPIO18, and the gyroscope interrupt on GPIO23.
+
+## 10. Configurable Components
+
+### 10.1. Power Source Selection (U301, TPS2121)
+
+| Ref | Default | Function | Notes |
+|---|---|---|---|
+| U301 mode | XCOMP | Source selection | Automatic switchover with priority. USB 5V has priority over PoL 5V; output switches to PoL when USB drops below ~3.7 V (at PoL = 5 V). DS rev. F, p. 25 |
+| R304 | 22k | OVP / divider | OVP set to ~6.0 V for both inputs. DS rev. F |
+| R306 | 33k | Current limit (ILIM) | Limited to ~2.4 A (47k path) / ~1.2 A on the 3V3 mux (100k). DS rev. F, p. 8 |
+
+The 3.3V-rail source mux (U303, TPS2121) is not implemented this revision.
+
+### 10.2. 5V Point-of-Load Module (U302, FS1603A-5000)
+
+| Ref | Default | Function | Notes |
+|---|---|---|---|
+| R301 / R302 | 47k / 10k | EN UVLO divider | Sets enable under-voltage lockout: ~6.8 V rising, ~5.7 V falling. DS rev. 1.0, p. 13 |
+| ADDR | 0x08 | I2C address | On I2C3 |
+
+The 3.3V PoL module (U304, FS1603A-3300) is not implemented this revision; it was intended to power the M.2 card.
+
+### 10.3. Gyroscope (U801, IAM-20380)
+
+| Ref | Default | Function | Notes |
+|---|---|---|---|
+| ADDR | 0x68 | I2C address | On I2C3 |
+| INT | GPIO23 | Interrupt | To CM5 GPIO23 |
+
+### 10.4. FRAM (U802, CY15B102Q)
+
+| Ref | Default | Function | Notes |
+|---|---|---|---|
+| Interface | SPI1 | Bus | CM5 GPIO19/20/21/24 |
+| R802 | 10k | CS pull-up | Holds CS (NCS) high when the CM5 GPIO is undriven |
+| HOLD | GPIO18 | HOLD control | Driven from CM5 GPIO18 |
+
+### 10.5. RTC Backup Battery (BT401)
+
+| Ref | Default | Function | Notes |
+|---|---|---|---|
+| BT401 | Keystone 2998 | Coin cell holder | 6.8 mm dia, 2.1–2.6 mm height. Recommended rechargeable cell: Seiko MS621T |
+| R406 | 1k | Charge resistor | Populate with 1k to enable charging. Leave DNP when using a non-rechargeable cell or no battery |
+
+### 10.6. Rail Breakout Headers (J107, J108)
+
+| Ref | Default | Function | Notes |
+|---|---|---|---|
+| J107 | Unpopulated | 3.3V bus rail breakout | 1x02 1.27 mm. The 3.3V and 5V bus rails are not used in this design (the board runs from VBAT); they are broken out for convenience only |
+| J108 | Unpopulated | 5V bus rail breakout | The 5V rail would power the 3.3V PoL module, which is not implemented this revision |
+
+### 10.7. Indicator LEDs
+
+Each indicator LED has a bridged solder jumper that can be cut to disable it.
+
+| LED | Jumper | Indicates |
+|---|---|---|
+| D101 | JP101 | +3V3 (CM5 3.3V output – supplies all on-board 3.3V devices) |
+| D102 | JP102 | +5V (output of the PoL module) |
+| D103 | JP103 | CM5 power |
+| D104 | JP104 | CM5 activity |
+| D105 | JP105 | Ethernet activity |
+| D106 | JP106 | M.2 activity – not implemented this revision |
+
+## 11. Test Points, Indicators, Buttons & Jumpers
+
+### 11.1. Test Points
+
+| Ref | Net | Notes |
+|---|---|---|
+| TP101 | +3V3 | |
+| TP102 | +3V3_M.2 | Not implemented (M.2) |
+| TP103 | +5V | |
+| TP104 | +VBAT_BUS | |
+| TP105 | GND | |
+| TP106 | PMUX1_ST | 5V mux status |
+| TP107 | PMUX2_ST | Not implemented (3V3 mux) |
+| TP108 | I2C_4_SCL | Not implemented (3V3 PoL) |
+| TP109 | I2C_4_SDA | Not implemented (3V3 PoL) |
+| TP110 | SPI_2_CS | Payload bus SPI |
+| TP111 | SPI_2_PICO | Payload bus SPI |
+| TP112 | SPI_2_POCI | Payload bus SPI |
+| TP113 | SPI_2_SCL | Payload bus SPI |
+| TP114 | UART_1_TX | Payload bus UART |
+| TP115 | UART_1_RX | Payload bus UART |
+| TP116 | UART_1_RTS | Payload bus UART |
+| TP117 | UART_1_CTS | Payload bus UART |
+| TP118 | GPIO2_BUS | Spare payload GPIO (CM5 GPIO25) |
+
+### 11.2. Indicators
+
+See [Indicator LEDs](#107-indicator-leds).
+
+### 11.3. Buttons
+
+Both buttons are CK KMS223GP LFG.
+
+- **SW101 (PWR_BUT)**: Push briefly to power the CM5 on or off. Hold for more than 5 seconds to force the CM5 to shut down.
+- **SW102 (RESET)**: Push to turn the PMIC off, for resetting the board without a full power cycle.
+
+### 11.4. Configuration Jumpers
+
+All configuration jumpers are short-pad type, normally open, and pull the relevant line to GND when closed.
+
+| Ref | Signal | Function when closed |
+|---|---|---|
+| J102 | BOOT | Force RPIBOOT (USB device mode, for firmware install) |
+| J103 | WL-EN | Disable WiFi (regulatory compliance) |
+| J104 | BT-EN | Disable Bluetooth (regulatory compliance) |
+| J105 | USBOTG_ID | Set USB host mode (correct OS driver must be used) |
+| J106 | EEPROM_WP | Enable EEPROM hardware write protection |
+
+## 12. Known Limitations & Design Decisions
+
+- **M.2 not implemented**: The M.2 Key-M connector (J501) and its 3.3V PoL chain (U304, U303, U501) are present in the schematic but were not placed on the board, because usable component height on the bottom copper is limited to 1.49 mm. As a result the board carries a single power mux and a single PoL module.
+- **Bus 3.3V / 5V rails unused**: The board runs from VBAT only. The 3.3V and 5V bus rails are broken out to unpopulated headers (J107, J108) but are otherwise unused.
+- **No inhibit logic**: There is no RBF / deployment-switch inhibit on this board.
+- **No watchdog**: No external watchdog is fitted.
+- **I2C3 is shared**: The on-board gyro (0x68) and 5V PoL (0x08) share I2C3 with the payload bus. Ensure no address conflicts with external devices added on the bus.
+- **No external I2C pull-ups**: All three I2C buses rely on the CM5's internal 1.8 kΩ pull-ups. External devices on the payload bus must not assume board-side pull-ups beyond this.
+- **Gyro only**: The IAM-20380 is a 3-axis gyroscope with no accelerometer or magnetometer; it provides angular rate only.
+- **Not flight-qualified**: This board is for development and bring-up. It has not been qualified for space flight.
+
+## 13. Revision History
+
+| Version | Date | Summary |
+|---|---|---|
+| v1r1 | 2026-06-13 | Initial sample build. CM5 carrier respun from CM5_MINIMA_REV2. Single 5V PoL (FS1603A-5000) and single power mux (TPS2121). On-board IAM-20380 gyro and CY15B102Q FRAM. M.2 and 3.3V PoL chain laid out in the schematic but not implemented on the board. |
+
+## 14. Notes
+
+Designed for development and bring-up. Not flight-qualified.
+
+## 15. License
+
+[CERN-OHL-S-2.0](../../LICENSE)
