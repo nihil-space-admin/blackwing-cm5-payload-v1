@@ -29,7 +29,7 @@
 
 This board is still in development and has not been qualified for space flight.-->
 
-![3D Render](https://github.com/nihil-space/blackwing-cm5-payload-module-v1r1/)
+![3D Render](https://github.com/nihil-space-admin/blackwing-cm5-payload-v1/blob/main/assets/blackwing-cm5-payload-v1-r1-render.webp)
 
 ## Table of Contents
 
